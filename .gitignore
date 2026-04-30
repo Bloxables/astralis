@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.exe
+*.blockmap
+latest.yml
+__pycache__/
+*.pyc

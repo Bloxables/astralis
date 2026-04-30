@@ -1,0 +1,70 @@
+{
+  "name": "astralis",
+  "productName": "Astralis",
+  "version": "3.0.0",
+  "description": "Astralis Electron shell",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "build-backend": "pyinstaller --noconfirm --onefile --windowed --name astralis_backend --distpath backend backend\\astralis_backend.py",
+    "build": "npm run build-backend && electron-builder --win nsis",
+    "build-portable": "npm run build-backend && electron-builder --win portable",
+    "publish": "npm run build-backend && electron-builder --publish always"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.astralis.app",
+    "productName": "Astralis",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Bloxables",
+        "repo": "astralis"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/astralis_backend.exe",
+        "to": "backend/astralis_backend.exe"
+      },
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "Astralis-Setup-${version}.${ext}",
+      "icon": "assets/other/Astralis.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "include": "build/astralis_backend/installer.nsh",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Astralis"
+    }
+  }
+}

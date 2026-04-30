@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --fg-bg: #111315;
+      --fg-bg-hover: #1A1D20;
+      --fg-card: #0F1720;
+      --fg-card-alt: #081018;
+      --text-primary: #E5E7EB;
+      --text-secondary: #9AA0A6;
+      --accent: #1561C0;
+      --accent-hover: #1C75E5;
+      --border: #263241;
+      --shadow: rgba(0,0,0,.45);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: "Segoe UI", system-ui, sans-serif; color: var(--text-primary); }
+    .overlay { margin: 10px; padding: 12px; background: color-mix(in srgb, var(--fg-card) 94%, transparent); border: 1px solid var(--border); border-radius: 12px; }
+    .head { display: flex; align-items: center; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--border); margin-bottom: 10px; -webkit-app-region: drag; cursor: move; user-select: none; }
+    .head img { width: 24px; height: 24px; object-fit: contain; }
+    .title { font-size: 13px; font-weight: 700; }
+    .rows { display: grid; gap: 5px; }
+    .row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px; font-size: 12px; line-height: 1.25; }
+    .label { color: var(--text-secondary); }
+    .value { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .actions { display: flex; gap: 8px; margin-top: 12px; }
+    button { border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--fg-card-alt); padding: 7px 10px; cursor: pointer; font-size: 12px; transition: background .12s ease, transform .08s ease, box-shadow .12s ease; user-select: none; -webkit-user-select: none; }
+    button:hover { background: var(--fg-bg-hover); box-shadow: 0 5px 14px var(--shadow); }
+    button:active { transform: scale(.96); }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    button.primary:hover { background: var(--accent-hover); }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <div class="head">
+      <img src="assets/other/Astralis.png" alt="">
+      <div class="title">Macro Status</div>
+    </div>
+    <div class="rows">
+      <div class="row"><div class="label">Status:</div><div class="value" id="status"></div></div>
+      <div class="row"><div class="label">Poll Rate:</div><div class="value" id="poll"></div></div>
+      <div class="row"><div class="label">Ball to Use:</div><div class="value" id="ball"></div></div>
+      <div class="row"><div class="label">Fallback captures:</div><div class="value" id="fallback"></div></div>
+      <div class="row"><div class="label">Target List:</div><div class="value" id="targets"></div></div>
+      <div class="row"><div class="label">Encounter count:</div><div class="value" id="encounters"></div></div>
+      <div class="row"><div class="label">Target items:</div><div class="value" id="caught"></div></div>
+      <div class="row"><div class="label">Non-target items:</div><div class="value" id="fled"></div></div>
+      <div class="row"><div class="label">Run time:</div><div class="value" id="runtime"></div></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="pauseBtn">Pause</button>
+      <button id="hideBtn">Hide Overlay</button>
+      <button id="exitBtn">Exit</button>
+    </div>
+  </div>
+  <script>
+    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value ?? '' }
+    window.astralisAPI.onOverlayStatus(payload => {
+      setText('status', payload.status)
+      setText('poll', payload.poll)
+      setText('ball', payload.ball)
+      setText('fallback', payload.fallback)
+      setText('targets', payload.targets)
+      setText('encounters', payload.encounters)
+      setText('caught', payload.caught)
+      setText('fled', payload.fled)
+      setText('runtime', payload.runtime)
+      document.getElementById('pauseBtn').textContent = `${payload.paused ? 'Resume' : 'Pause'} (${payload.pauseKey || 'F6'})`
+      document.getElementById('hideBtn').textContent = `Hide Overlay (${payload.hideKey || 'F8'})`
+      document.getElementById('exitBtn').textContent = `Exit (${payload.exitKey || 'F7'})`
+    })
+    document.getElementById('pauseBtn').addEventListener('click', () => window.astralisAPI.sendOverlayCommand({ type: 'toggle_pause_bot' }))
+    document.getElementById('hideBtn').addEventListener('click', () => window.astralisAPI.sendOverlayCommand({ type: 'hide_overlay' }))
+    document.getElementById('exitBtn').addEventListener('click', () => window.astralisAPI.sendOverlayCommand({ type: 'stop_bot' }))
+  </script>
+</body>
+</html>
