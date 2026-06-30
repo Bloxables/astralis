@@ -155,8 +155,11 @@
     .tooltip-portal { position: fixed; z-index: 999999; max-width: 260px; background: var(--fg-bg-hover); color: var(--text-primary); border: 1px solid var(--border-muted); border-radius: 6px; padding: 7px 9px; font-size: 12px; line-height: 1.35; box-shadow: 0 8px 22px var(--shadow); pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .12s ease, transform .12s ease; white-space: normal; }
     .tooltip-portal.open { opacity: 1; transform: translateY(0); }
 
-    .tutorial-backdrop { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); z-index: 7000; pointer-events: auto; }
-    .tutorial-backdrop.open { display: block; }
+    .tutorial-backdrop { position: fixed; inset: 0; display: none; background: rgba(0,0,0,.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); z-index: 7000; pointer-events: auto; opacity: 1; transition: backdrop-filter .4s ease, -webkit-backdrop-filter .4s ease, opacity .3s ease; }
+    .tutorial-backdrop.fade-out { backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); opacity: 0; }
+    .tutorial-backdrop.open { display: block; animation: tutorialBackdropIn .4s ease forwards; }
+    .tutorial-backdrop.open.fade-out { animation: tutorialBackdropOut .4s ease forwards; }
+    .tutorial-backdrop.show { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 1; }
     .tutorial-card { position: fixed; width: min(360px, calc(100dvw - 32px)); background: var(--fg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 18px 50px var(--shadow); padding: 16px; z-index: 7003; display: none; }
     .tutorial-card.open { display: block; }
     .tutorial-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
@@ -165,6 +168,15 @@
     .tutorial-text { color: var(--text-secondary); font-size: 14px; line-height: 1.45; margin-bottom: 16px; }
     .tutorial-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .tutorial-highlight { position: relative !important; z-index: 7002 !important; box-shadow: 0 0 0 3px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 65%, transparent) !important; }
+    .tutorial-highlight-clone { position: fixed !important; z-index: 7002 !important; pointer-events: none; box-shadow: 0 0 0 3px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 65%, transparent) !important; }
+    @keyframes tutorialBackdropIn {
+      from { opacity: 0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+      to { opacity: 1; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+    }
+    @keyframes tutorialBackdropOut {
+      from { opacity: 1; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+      to { opacity: 0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+    }
 
     .theme-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     .theme-tools button { background: var(--accent); color: var(--text-primary); border: 0; border-radius: 4px; padding: 9px 12px; cursor: pointer; font-size: clamp(12px, 0.82vw, 14px); }
@@ -1041,19 +1053,19 @@
                 <span class="use-current-value" id="useCurrentBall">(auto)</span>
               </div>
               <div class="find-footer-right">
-                <span class="settings-help" data-tooltip="Auto uses the best available ball based on your configured priority and what Astralis detects in the bag.">?</span>
-                <button class="find-btn alt" id="useSetAutoBtn">Set to Auto</button>
+                <span class="settings-help" data-tooltip="Set the order Astralis should prioritize balls. When your highest-priority ball isn't available, it will automatically use the next one in the list.">?</span>
+                <button class="find-btn alt" id="useSelectPriorityBtn">Select Priority</button>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="link-modal-backdrop" id="useAutoBackdrop">
+        <div class="link-modal-backdrop" id="usePriorityBackdrop">
           <div class="link-modal">
             <div class="link-modal-head"><img src="assets/other/Astralis.png" alt=""><span>Auto Ball Priority</span></div>
             <div class="link-modal-body">
               <div class="link-modal-text">
-                Auto lets the bot search for your selected balls in priority order when scanning the bag.<br><br>
+                Priority lets the bot search for your selected balls in order when scanning the bag.<br><br>
                 Pick up to 3 balls:<br>
                 The bot will try to use #1 first. If it is not found or unavailable, it will try #2, then #3.<br><br>
                 If a higher-priority ball is not found, the bot falls through to the next selected ball.
@@ -1061,9 +1073,9 @@
               <div class="use-list" id="useAutoList"></div>
             </div>
             <div class="link-modal-actions">
-              <button class="find-btn primary" id="useAutoApplyBtn" disabled>Apply</button>
+              <button class="find-btn primary" id="usePriorityApplyBtn" disabled>Apply</button>
               <button class="find-btn alt" id="useAutoCancelBtn">Cancel</button>
-              <button class="find-btn stop" id="useAutoResetBtn" style="display:none;">Reset</button>
+              <button class="find-btn stop" id="usePriorityResetBtn" style="display:none;">Reset</button>
             </div>
           </div>
         </div>
@@ -1442,11 +1454,15 @@
                       <label class="settings-field"><span class="settings-label">Run Detection Threshold<span class="settings-help" data-tooltip="How confident Astralis must be before it treats the run button as found.">?</span></span><input class="settings-input" id="settingsRunThreshold" type="text" value="0.45"></label>
                       <label class="settings-field"><span class="settings-label">Text Match Sensitivity<span class="settings-help" data-tooltip="How closely detected text must match a target name. Higher means stricter matching.">?</span></span><input class="settings-input" id="settingsFuzzyRatio" type="text" value="0.90"></label>
                       <label class="settings-field"><span class="settings-label">Target Text Region<span class="settings-help" data-tooltip="Screen area Astralis scans for the encounter or item name. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsTargetRegion" type="text" value="0,0.75,0.6,1"></label>
+                      <label class="settings-field"><span class="settings-label">Pokémon Name Region<span class="settings-help" data-tooltip="Fallback OCR area Astralis scans for the opposing Pokémon name when battle text misses it. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsPokemonNameRegion" type="text" value="0.05,0.15,0.35,0.25"></label>
                       <label class="settings-field"><span class="settings-label">HUD Text Region<span class="settings-help" data-tooltip="Screen area Astralis scans for battle HUD text. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsHudRegion" type="text" value="0.6,0.88,0.99,1"></label>
                       <label class="settings-field"><span class="settings-label">Bag HUD Region<span class="settings-help" data-tooltip="Screen area used to detect bag-related text or buttons. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsBagHudRegion" type="text" value="0,0,0.50,1"></label>
                       <label class="settings-field"><span class="settings-label">Run HUD Region<span class="settings-help" data-tooltip="Screen area used to detect the run option. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsRunHudRegion" type="text" value="0.50,0,1,1"></label>
                       <label class="settings-field"><span class="settings-label">Ball Button Region<span class="settings-help" data-tooltip="Screen area where Astralis expects the ball button to appear. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsBallRegion" type="text" value="0.27,0.16,0.53,0.785"></label>
                       <label class="settings-field"><span class="settings-label">Use Button Region<span class="settings-help" data-tooltip="Screen area where Astralis expects the Use button to appear. Format is left,top,right,bottom.">?</span></span><input class="settings-input" id="settingsUseRegion" type="text" value="0.35,0.785,0.44,0.825"></label>
+                    </div>
+                    <div class="farm-actions" style="margin-top:10px;">
+                      <button class="find-btn primary" id="settingsPreviewRegionsBtn" type="button">Show Regions</button>
                     </div>
                     <label class="settings-check-row" style="margin-top:10px;"><input id="settingsDeveloperMode" type="checkbox"><span>Developer Mode</span></label>
                     <button class="find-btn stop" id="settingsUninstallBtn" type="button" style="margin-top:10px;">Uninstall Astralis</button>
@@ -1847,6 +1863,7 @@
       run_threshold: "0.45",
       fuzzy_ratio: "0.90",
       target_region: "0,0.75,0.6,1",
+      pokemon_name_region: "0.05,0.15,0.35,0.25",
       hud_region: "0.6,0.88,0.99,1",
       bag_hud_region: "0,0,0.50,1",
       run_hud_region: "0.50,0,1,1",
@@ -1934,6 +1951,7 @@
         settingsRunThreshold: 'run_threshold',
         settingsFuzzyRatio: 'fuzzy_ratio',
         settingsTargetRegion: 'target_region',
+        settingsPokemonNameRegion: 'pokemon_name_region',
         settingsHudRegion: 'hud_region',
         settingsBagHudRegion: 'bag_hud_region',
         settingsRunHudRegion: 'run_hud_region',
@@ -2169,6 +2187,7 @@
         settingsRunThreshold: 'run_threshold',
         settingsFuzzyRatio: 'fuzzy_ratio',
         settingsTargetRegion: 'target_region',
+        settingsPokemonNameRegion: 'pokemon_name_region',
         settingsHudRegion: 'hud_region',
         settingsBagHudRegion: 'bag_hud_region',
         settingsRunHudRegion: 'run_hud_region',
@@ -2315,6 +2334,20 @@
         settingsSavedRawSnapshot = JSON.stringify(settingsState)
         markSettingsChanged()
         applyTabRestrictions()
+      })
+
+      document.getElementById('settingsPreviewRegionsBtn').addEventListener('click', () => {
+        sendPython('preview_settings_regions', {
+          regions: {
+            target_region: settingsState.target_region,
+            pokemon_name_region: settingsState.pokemon_name_region,
+            hud_region: settingsState.hud_region,
+            bag_hud_region: settingsState.bag_hud_region,
+            run_hud_region: settingsState.run_hud_region,
+            ball_region: settingsState.ball_region,
+            use_region: settingsState.use_region
+          }
+        })
       })
 
       document.getElementById('settingsUninstallBtn')?.addEventListener('click', () => {
@@ -3751,7 +3784,7 @@
       welcome: { title: 'Welcome', text: 'Start here for setup notes, quick links, troubleshooting tips, and the fastest path into the main workflow.' },
       find: { title: 'Find', text: 'Choose which target items or Pokémon Astralis should look for while scanning encounters.' },
       use: { title: 'Use', text: 'Choose which Poké Ball Astralis should use when a target is found, including automatic ball priority.' },
-      farm: { title: 'Farm', text: 'Configure the farming automation click points and move choice for NPC farming workflows.' },
+      farm: { title: 'Farm', text: 'Configure the farming automation click points and move choice for NPC farming in Saffron City.' },
       logs: { title: 'Logs', text: 'Review encounter results, catches, failures, fallback captures, and historical hunt activity.' },
       stats: { title: 'Stats', text: 'View summarized item and Pokémon encounter totals so you can track long-term performance.' },
       data: { title: 'Sessions', text: 'Browse saved session records, inspect details, and manage historical session data.' },
@@ -3760,7 +3793,7 @@
     }
 
     function getTutorialSteps() {
-      const tabSteps = ['welcome','find','use','farm','logs','stats','data','settings','about'].map(tab => ({ tab, selector: tab === 'settings' ? '.nav-settings-icon[data-tab="settings"]' : `.tab-btn[data-tab="${tab}"]`, ...tutorialDescriptions[tab] })).filter(step => {
+      const tabSteps = ['welcome','find','use','farm','logs','stats','data','settings','about'].map(tab => ({ tab, selector: tab === 'settings' ? '.nav-settings-icon[data-tab="settings"]' : tab === 'about' ? '.nav-about-icon[data-tab="about"]' : `.tab-btn[data-tab="${tab}"]`, ...tutorialDescriptions[tab] })).filter(step => {
         const btn = document.querySelector(step.selector)
         return btn && !btn.hidden && getComputedStyle(btn).display !== 'none'
       })
@@ -3799,12 +3832,24 @@
     function renderTutorialStep() {
       const step = tutorialState.steps[tutorialState.index]
       if (!step) return closeTutorial()
+      if (step.tab) setActiveTab(step.tab)
+      if (step.selector === '#welcomeStartTutorial') setActiveTab('welcome')
       const target = document.querySelector(step.selector)
       if (!target) return nextTutorialStep()
       document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'))
-      if (step.tab) setActiveTab(step.tab)
-      if (step.selector === '#welcomeStartTutorial') setActiveTab('welcome')
+      document.querySelectorAll('.tutorial-highlight-clone').forEach(el => el.remove())
       target.classList.add('tutorial-highlight')
+      if (step.selector === '#welcomeStartTutorial') {
+        const rect = target.getBoundingClientRect()
+        const clone = target.cloneNode(true)
+        clone.id = ''
+        clone.classList.add('tutorial-highlight-clone')
+        clone.style.left = `${rect.left}px`
+        clone.style.top = `${rect.top}px`
+        clone.style.width = `${rect.width}px`
+        clone.style.height = `${rect.height}px`
+        document.body.appendChild(clone)
+      }
       document.getElementById('tutorialStepCount').textContent = `${tutorialState.index + 1}/${tutorialState.steps.length}`
       document.getElementById('tutorialTitle').textContent = step.title
       document.getElementById('tutorialText').textContent = step.text
@@ -3820,14 +3865,21 @@
       tutorialState.index = 0
       if (!tutorialState.steps.length) return
       document.body.classList.add('tutorial-open')
+      const backdrop = document.getElementById('tutorialBackdrop')
+      backdrop.classList.add('open')
+      requestAnimationFrame(() => backdrop.classList.add('show'))
       renderTutorialStep()
     }
 
     function closeTutorial() {
       document.body.classList.remove('tutorial-open')
-      document.getElementById('tutorialBackdrop').classList.remove('open')
+      const backdrop = document.getElementById('tutorialBackdrop')
+      backdrop.classList.remove('show')
+      backdrop.classList.add('fade-out')
+      setTimeout(() => backdrop.classList.remove('open','fade-out'), 400)
       document.getElementById('tutorialCard').classList.remove('open')
       document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'))
+      document.querySelectorAll('.tutorial-highlight-clone').forEach(el => el.remove())
       markTutorialSeen()
     }
 
@@ -4538,7 +4590,7 @@
       { id: 'debugColorBackdrop', close: closeDebugColorModal, confirm: 'debugColorSaveBtn' },
       { id: 'debugSliceBackdrop', close: closeDebugSliceModal, confirm: 'debugSliceCloseBtn' },
       { id: 'attachModal', close: closeAttachModal, confirm: 'attachStartBtn' },
-      { id: 'useAutoBackdrop', close: () => document.getElementById('useAutoBackdrop').classList.remove('open') },
+      { id: 'usePriorityBackdrop', close: () => document.getElementById('usePriorityBackdrop').classList.remove('open') },
       { id: 'findPresetsBackdrop', close: closeFindPresetsModal },
       { id: 'themePresetsBackdrop', close: closeThemePresetsModal },
       { id: 'themeImportExportBackdrop', close: closeThemeImportExportModal, confirm: 'themeImportExportActionBtn' },
@@ -4674,7 +4726,7 @@
     }
 
     const USE_BALLS = ["Poke Ball.png","Great Ball.png","Ultra Ball.png","Master Ball.png","Premier Ball.png","Quick Ball.png","Repeat Ball.png","Net Ball.png","Nest Ball.png"]
-    const useState = { selectedBall: "Poke Ball.png", autoPriority: [] }
+    const useState = { selectedBall: "Poke Ball.png", priorityOrder: [] }
 
     function saveFindCustomPresets() {
         const payload = {}
@@ -4942,18 +4994,18 @@
     }
 
     function getUseChoiceValue() {
-      return useState.selectedBall ? useState.selectedBall : `auto:${useState.autoPriority.join('|')}`
+      return useState.selectedBall ? useState.selectedBall : `auto:${useState.priorityOrder.join('|')}`
     }
 
     function hydrateUseStateFromChoice(value) {
       const raw = String(value || '')
       if (raw.startsWith('auto:')) {
         useState.selectedBall = ''
-        useState.autoPriority = raw.slice(5).split('|').filter(Boolean).slice(0, 3)
+        useState.priorityOrder = raw.slice(5).split('|').slice(0,3);while(useState.priorityOrder.length<3)useState.priorityOrder.push('')
         return
       }
       useState.selectedBall = raw
-      useState.autoPriority = []
+      useState.priorityOrder = []
     }
 
     function saveUseBackendState() {
@@ -4966,10 +5018,10 @@
       const current = document.getElementById('useCurrentBall')
       if (!list || !current) return
       list.innerHTML = ''
-      current.textContent = useState.selectedBall ? getUseBallDisplayName(useState.selectedBall) : useState.autoPriority.length ? `Auto: ${useState.autoPriority.map(getUseBallDisplayName).join(' > ')}` : '(auto)'
+      const label=document.querySelector('.use-current-label');if(label)label.textContent=useState.selectedBall?'Currently using:':'Priority:';current.textContent=useState.selectedBall?getUseBallDisplayName(useState.selectedBall):useState.priorityOrder.length?useState.priorityOrder.map(getUseBallDisplayName).join(' > '):'(none)'
 
       USE_BALLS.forEach(filename => {
-        const rankIndex = !useState.selectedBall ? useState.autoPriority.indexOf(filename) : -1
+        const rankIndex = !useState.selectedBall ? useState.priorityOrder.indexOf(filename) : -1
         const active = useState.selectedBall === filename || rankIndex >= 0
         const row = document.createElement('div')
         row.className = `use-row${active ? ' active' : ''}`
@@ -4988,21 +5040,18 @@
         nameEl.className = `use-row-name${active ? ' active' : ''}`
         nameEl.textContent = getUseBallDisplayName(filename)
 
-        const control = !useState.selectedBall && useState.autoPriority.length ? document.createElement('div') : document.createElement('input')
-        control.className = !useState.selectedBall && useState.autoPriority.length ? `use-row-rank${rankIndex >= 0 ? ' active' : ''}` : 'use-row-radio'
-        if (!useState.selectedBall && useState.autoPriority.length) control.textContent = rankIndex >= 0 ? rankIndex + 1 : ''
+        const control = !useState.selectedBall && useState.priorityOrder.length ? document.createElement('div') : document.createElement('input')
+        control.className = !useState.selectedBall && useState.priorityOrder.length ? `use-row-rank${rankIndex >= 0 ? ' active' : ''}` : 'use-row-radio'
+        if (!useState.selectedBall && useState.priorityOrder.length) control.textContent = rankIndex >= 0 ? rankIndex + 1 : ''
         else { control.type = 'radio'; control.name = 'useBallChoice'; control.checked = active }
 
         function pick() {
-          useState.selectedBall = filename
-          saveUseBackendState()
-          renderUseList()
+          const applyPick=()=>{useState.selectedBall=filename;useState.priorityOrder=[];saveUseBackendState();renderUseList()}
+          if(!useState.selectedBall&&useState.priorityOrder.some(Boolean))openConfirmModal('Switch to Single Selection','This will remove your priority order and use only this ball.',applyPick)
+          else applyPick()
         }
 
-        row.addEventListener('click', e => {
-          if (e.target === control) return
-          pick()
-        })
+        row.addEventListener('click', pick)
 
         control.addEventListener('change', pick)
 
@@ -5110,15 +5159,15 @@
       })
     }
 
-    function renderUseAutoModal() {
+    function renderUsePriorityModal() {
       const list = document.getElementById('useAutoList')
-      const resetBtn = document.getElementById('useAutoResetBtn')
-      const applyBtn = document.getElementById('useAutoApplyBtn')
-      if (resetBtn) resetBtn.style.display = useState.autoPriority.length ? '' : 'none'
-      if (applyBtn) applyBtn.disabled = useState.autoPriority.length !== 3
+      const resetBtn = document.getElementById('usePriorityResetBtn')
+      const applyBtn = document.getElementById('usePriorityApplyBtn')
+      if (resetBtn) resetBtn.style.display = useState.priorityOrder.length ? '' : 'none'
+      if (applyBtn) applyBtn.disabled = useState.priorityOrder.filter(Boolean).length !== 3
       list.innerHTML = ''
       USE_BALLS.forEach(filename => {
-        const index = useState.autoPriority.indexOf(filename)
+        const index = useState.priorityOrder.indexOf(filename)
         const row = document.createElement('div')
         row.className = `use-auto-row${index >= 0 ? ' selected' : ''}`
         const rank = document.createElement('div')
@@ -5133,10 +5182,10 @@
         try { icon.src = getBallAssetPath(getUseBallDisplayName(filename)) } catch {}
         icon.onerror = () => icon.remove()
         row.addEventListener('click', () => {
-          if (index >= 0) useState.autoPriority.splice(index, 1)
-          else if (useState.autoPriority.length < 3) useState.autoPriority.push(filename)
-          renderUseAutoModal()
-          if (useState.autoPriority.length === 3) {
+          if (index >= 0) useState.priorityOrder[index]=''
+          else {const emptyIndex=useState.priorityOrder.findIndex(v=>!v);if(emptyIndex>=0)useState.priorityOrder[emptyIndex]=filename;else if(useState.priorityOrder.length<3)useState.priorityOrder.push(filename)}
+          renderUsePriorityModal()
+          if (useState.priorityOrder.length === 3) {
             useState.selectedBall = ''
           }
         })
@@ -5145,19 +5194,19 @@
       })
     }
 
-    function openUseAutoModal() {
-      renderUseAutoModal()
-      document.getElementById('useAutoBackdrop').classList.add('open')
+    function openUsePriorityModal() {
+      renderUsePriorityModal()
+      document.getElementById('usePriorityBackdrop').classList.add('open')
     }
 
     function initUseTab() {
       renderUseList()
 
-      document.getElementById('useSetAutoBtn').addEventListener('click', openUseAutoModal)
-      document.getElementById('useAutoResetBtn').addEventListener('click', () => { useState.autoPriority = []; renderUseAutoModal() })
-      document.getElementById('useAutoApplyBtn').addEventListener('click', () => { if(useState.autoPriority.length!==3)return; useState.selectedBall=''; saveUseBackendState(); renderUseList(); document.getElementById('useAutoBackdrop').classList.remove('open') })
-      document.getElementById('useAutoCancelBtn').addEventListener('click', () => document.getElementById('useAutoBackdrop').classList.remove('open'))
-      document.getElementById('useAutoBackdrop').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open') })
+      document.getElementById('useSelectPriorityBtn').addEventListener('click', openUsePriorityModal)
+      document.getElementById('usePriorityResetBtn').addEventListener('click', () => { useState.priorityOrder = []; renderUsePriorityModal() })
+      document.getElementById('usePriorityApplyBtn').addEventListener('click', () => { if(useState.priorityOrder.length!==3)return; useState.selectedBall=''; saveUseBackendState(); renderUseList(); document.getElementById('usePriorityBackdrop').classList.remove('open') })
+      document.getElementById('useAutoCancelBtn').addEventListener('click', () => document.getElementById('usePriorityBackdrop').classList.remove('open'))
+      document.getElementById('usePriorityBackdrop').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open') })
     }
     
     function syncPokemonFooterControls() {
@@ -5496,7 +5545,6 @@
       if (bootLoaded.size >= bootRequired.size) document.body.classList.remove('loading')
     }
     setTimeout(() => document.body.classList.remove('loading'), 5000)
-    document.addEventListener('keydown', e => e.key === 'F2' && (document.body.classList.add('loading'), setTimeout(() => document.body.classList.remove('loading'), 5000)))
 
     function requestBackendData() {
       sendPython('get_settings')
@@ -5580,6 +5628,23 @@
           footerStatusText.textContent = msg.payload.message || 'Farm preview updated.'
           const btn = document.getElementById('farmPreviewBtn')
           if (btn) btn.textContent = msg.payload.visible ? 'Hide Regions' : 'Preview Regions'
+        }
+        if (msg.type === 'settings_preview_state') {
+          footerStatusText.textContent = msg.payload.message || 'Advanced region preview updated.'
+          const btn = document.getElementById('settingsPreviewRegionsBtn')
+          if (btn) btn.textContent = msg.payload.visible ? 'Hide Regions' : 'Show Regions'
+        }
+        if (msg.type === 'setting_region_changed') {
+          const key = msg.payload.key
+          const value = msg.payload.value
+          const id = Object.entries(settingsTextMap || {}).find(([, mapped]) => mapped === key)?.[0]
+          const el = id ? document.getElementById(id) : null
+          if (el) {
+            settingsState[key] = value
+            el.value = value
+            syncSettingsResetButton(el, key)
+            markSettingsChanged()
+          }
         }
         if (msg.type === 'item_stats') {
           markBootLoaded('item_stats')
