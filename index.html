@@ -899,16 +899,16 @@
 
               <div class="welcome-col">
                 <div class="welcome-section">
-                  <h4>Patch Notes — v3.0</h4>
+                  <h4>Patch Notes — v3.1</h4>
                   <div class="welcome-list">
-                    <div class="welcome-list-item">• Added ability to target and catch specific Pokémon.</div>
-                    <div class="welcome-list-item">• Session Data tab now supports pagination with First/Last navigation.</div>
-                    <div class="welcome-list-item">• Session Detail View redesigned with grouped rows and clearer stats.</div>
-                    <div class="welcome-list-item">• Session Detail View now supports filtering (Target vs Non-target).</div>
-                    <div class="welcome-list-item">• Expanded session auto-delete options (days, entries, encounters, captures).</div>
-                    <div class="welcome-list-item">• Session Data settings now apply only after saving and hide when disabled.</div>
-                    <div class="welcome-list-item">• Session Detail table now supports column sorting and improved layout.</div>
-                    <div class="welcome-list-item">• General UI polish and improvements.</div>
+                    <div class="welcome-list-item">• Added Pokémon Name Region OCR fallback for missed encounter text.</div>
+                    <div class="welcome-list-item">• Added Advanced Region Preview for scan regions in Settings.</div>
+                    <div class="welcome-list-item">• Advanced regions can now be resized by dragging their edges.</div>
+                    <div class="welcome-list-item">• Added F10 hotkey to show or hide Advanced Region Preview.</div>
+                    <div class="welcome-list-item">• Renamed Set to Auto to Select Priority.</div>
+                    <div class="welcome-list-item">• Improved Priority mode warnings and slot behavior.</div>
+                    <div class="welcome-list-item">• Bag HUD and Run HUD now preview correctly inside HUD Text.</div>
+                    <div class="welcome-list-item">• Reduced unnecessary Pokémon Name Region debug log noise.</div>
                   </div>
                 </div>
 
@@ -2896,7 +2896,7 @@
     const panels = [...document.querySelectorAll('.panel')]
     const logsState = { rows: [], days: [], viewDate: null, viewDateLabel: 'All Logs', kind: 'items', showCaught: true, showFled: true, showFallback: true, selectedIndex: 0 }
     let pendingExternalUrl = null
-    const VERSION="v3.0"
+    const VERSION="v3.1"
 
     let FIND_ITEM_ORDER = []
     let FIND_ITEM_NOTES = {}
