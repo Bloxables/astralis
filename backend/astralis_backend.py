@@ -39,7 +39,7 @@ except AttributeError:
     ULONG_PTR = ctypes.c_size_t
 
 APP_BASE = "Astralis"
-APP_VERSION = "3.0"
+APP_VERSION = "3.1"
 APP_PREFIX = f"{APP_BASE} v"
 MARKER_FILE = ".astralis_marker"
 
@@ -72,6 +72,7 @@ CFG = {
 
     # ----- Regions -----
     "target_region":  "0,0.75,0.6,1",
+    "pokemon_name_region": "0.05,0.15,0.35,0.25",
     "hud_region":     "0.6,0.88,0.99,1",
     "bag_hud_region": "0,0,0.50,1",
     "run_hud_region": "0.50,0,1,1",
@@ -2124,6 +2125,7 @@ def bot_loop(hwnd=None):
         desired_ball_name = desired_ball_names[0] if desired_ball_names else ""
 
         perc_target   = parse_region(CFG["target_region"])
+        perc_pokemon_name = parse_region(CFG.get("pokemon_name_region", "0.05,0.15,0.35,0.25"))
         perc_hud      = parse_region(CFG["hud_region"])
         perc_use      = parse_region(CFG.get("use_region", CFG["hud_region"]))
         perc_ball     = parse_region(CFG.get("ball_region", CFG["target_region"]))
@@ -2333,6 +2335,40 @@ def bot_loop(hwnd=None):
                         best_name = name
                         break
             return best_txt, best_name
+
+        def _pokemon_name_from_region_text(raw_txt: str) -> str:
+            n = _ocr_norm(raw_txt)
+            if not n or len(n) < 4:
+                return ""
+            hits = []
+            for name in pokemon_names:
+                base = _norm_name(name)
+                variants = [base]
+                parts = [p for p in re.split(r"[-\s]+", name) if p]
+                if len(parts) > 1:
+                    variants.append(_norm_name(" ".join(reversed(parts))))
+                for variant in variants:
+                    if len(variant) >= 4 and (variant in n or n in variant):
+                        hits.append((len(variant), base))
+            if hits:
+                return sorted(hits, reverse=True)[0][1]
+            norms = [_norm_name(name) for name in pokemon_names]
+            close = difflib.get_close_matches(n, norms, n=1, cutoff=0.82)
+            return close[0] if close else ""
+
+        def _ocr_from_pokemon_name_region(sct, rect):
+            roi = grab(sct, *rect)
+            if roi is None or roi.size == 0:
+                return ""
+            try:
+                txt = ocr_text(preprocess_for_white_text(roi)).strip()
+                if txt:
+                    name = _pokemon_name_from_region_text(txt)
+                    if name:
+                        return name
+                return ""
+            except Exception:
+                return ""
 
         def _append_norm(raw_txt):
             if not raw_txt:
@@ -2791,6 +2827,7 @@ def bot_loop(hwnd=None):
                     was_hidden = False
 
                 target_rect  = perc_rect(cx, perc_target)
+                pokemon_name_rect = perc_rect(cx, perc_pokemon_name)
                 hud_rect     = perc_rect(cx, perc_hud)
                 use_rect     = perc_rect(cx, perc_use)
                 ball_rect    = perc_rect(cx, perc_ball)
@@ -2846,6 +2883,12 @@ def bot_loop(hwnd=None):
                             _log(f"[POKEMON] Encountered: {battle_poke_norm}")
                         else:
                             _try_log_pokemon_name(rescue_txt or txt)
+                            if not battle_poke_norm:
+                                fallback_name = _ocr_from_pokemon_name_region(sct, pokemon_name_rect)
+                                if fallback_name:
+                                    battle_poke_norm = _norm_name(fallback_name)
+                                    globals()['last_pokemon_seen'] = battle_poke_norm
+                                    _log(f"[POKEMON] Encountered: {battle_poke_norm}")
                         enc_tok = rescue_name or _extract_pokemon_from_norm_text(_ocr_norm(rescue_txt or txt)) or _extract_pokemon_from_recent()
                         battle_poke_norm = _norm_name(enc_tok) if enc_tok else battle_poke_norm
                         if (SHINY_NORM in s_now) or fuzzy_contains(s_now, SHINY_NORM):
@@ -2907,6 +2950,12 @@ def bot_loop(hwnd=None):
                 
                 battle_shiny = battle_shiny or (SHINY_NORM in n_now) or fuzzy_contains(n_now, SHINY_NORM)
                 is_shiny_now = battle_shiny
+                if not battle_poke_norm:
+                    fallback_name = _ocr_from_pokemon_name_region(sct, pokemon_name_rect)
+                    if fallback_name:
+                        battle_poke_norm = _norm_name(fallback_name)
+                        globals()['last_pokemon_seen'] = battle_poke_norm
+                        _log(f"[POKEMON] Encountered: {battle_poke_norm}")
                 enc_name_norm = battle_poke_norm or _norm_name(_extract_pokemon_from_norm_text(n_now) or _extract_pokemon_from_recent())
                 if enc_name_norm and not battle_poke_norm:
                     battle_poke_norm = enc_name_norm or _norm_name(_extract_pokemon_from_norm_text(n_now) or _extract_pokemon_from_recent())
@@ -3413,7 +3462,7 @@ def stop_global_hotkeys():
 def _hotkey_loop():
     MOD_NOREPEAT = 0x4000
     WM_HOTKEY = 0x0312
-    ids = [1, 2, 4]
+    ids = [1, 2, 3, 4]
     def unregister_all():
         for i in ids:
             try: user32.UnregisterHotKey(None, i)
@@ -3422,6 +3471,7 @@ def _hotkey_loop():
         unregister_all()
         user32.RegisterHotKey(None, 1, MOD_NOREPEAT, _vk_from_setting(CFG.get("vk_pause", "F6"), 0x75))
         user32.RegisterHotKey(None, 2, MOD_NOREPEAT, _vk_from_setting(CFG.get("vk_exit", "F7"), 0x76))
+        user32.RegisterHotKey(None, 3, MOD_NOREPEAT, _vk_from_setting(CFG.get("vk_regions", "F10"), 0x79))
         user32.RegisterHotKey(None, 4, MOD_NOREPEAT, _vk_from_setting(CFG.get("vk_hide_overlay", "F8"), 0x77))
     try:
         register_all()
@@ -3436,6 +3486,8 @@ def _hotkey_loop():
                     pause_flag.clear()
                     overlay_stop()
                     send("bot_status", {"running": False, "message": "Stop requested"})
+                elif msg.wParam == 3:
+                    preview_settings_regions()
                 elif msg.wParam == 4:
                     overlay_hide()
             time.sleep(0.03)
@@ -3467,6 +3519,7 @@ def clear_debug_logs():
         pass
 
 FARM_PREVIEW_OVERLAY = None
+FARM_PREVIEW_KIND = None
 FARM_PREVIEW_LOCK = threading.Lock()
 
 def _farm_preview_float_list(value, expected, fallback):
@@ -3487,19 +3540,24 @@ def _farm_preview_rect(value, fallback, L, T, R, B):
     return int(L + x0 * (R - L)), int(T + y0 * (B - T)), int(L + x1 * (R - L)), int(T + y1 * (B - T))
 
 def destroy_farm_preview_regions():
-    global FARM_PREVIEW_OVERLAY
+    global FARM_PREVIEW_OVERLAY, FARM_PREVIEW_KIND
     with FARM_PREVIEW_LOCK:
         overlay = FARM_PREVIEW_OVERLAY
+        kind = FARM_PREVIEW_KIND or "farm"
         FARM_PREVIEW_OVERLAY = None
+        FARM_PREVIEW_KIND = None
     try:
         if overlay:
             overlay.after(0, overlay.destroy)
     except Exception:
         pass
-    send("farm_preview_state", {"visible": False, "message": "Farm regions hidden."})
+    if kind == "settings":
+        send("settings_preview_state", {"visible": False, "message": "Advanced regions hidden."})
+    else:
+        send("farm_preview_state", {"visible": False, "message": "Farm regions hidden."})
 
 def _farm_preview_regions_thread(points):
-    global FARM_PREVIEW_OVERLAY
+    global FARM_PREVIEW_OVERLAY, FARM_PREVIEW_KIND
     import tkinter as tk
     try:
         hwnd = find_roblox_hwnd()
@@ -3511,6 +3569,7 @@ def _farm_preview_regions_thread(points):
             send("farm_preview_state", {"visible": False, "message": "Roblox window not visible."})
             return
         L, T, R, B = cr
+        W, H = max(1, R - L), max(1, B - T)
         root = tk.Tk()
         root.overrideredirect(True)
         root.attributes("-topmost", True)
@@ -3519,9 +3578,7 @@ def _farm_preview_regions_thread(points):
             root.attributes("-transparentcolor", trans)
         except Exception:
             pass
-        sw = root.winfo_screenwidth()
-        sh = root.winfo_screenheight()
-        root.geometry(f"{sw}x{sh}+0+0")
+        root.geometry(f"{W}x{H}+{L}+{T}")
         root.configure(bg=trans)
         canvas = tk.Canvas(root, highlightthickness=0, bg=trans, bd=0)
         canvas.pack(fill="both", expand=True)
@@ -3538,28 +3595,207 @@ def _farm_preview_regions_thread(points):
         ]
         for label, key, fallback in rows:
             x, y = _farm_preview_point(points.get(key) or CFG.get(key), fallback, L, T, R, B)
+            x -= L
+            y -= T
             canvas.create_oval(x - 7, y - 7, x + 7, y + 7, outline="#44DDF2", width=3)
             canvas.create_text(x + 10, y - 12, anchor="nw", text=label, fill="#E0E0E0")
         ocr_rect = _farm_preview_rect(points.get("learntext_ocr_region") or CFG.get("learntext_ocr_region"), "0.00,0.755,0.60,1.00", L, T, R, B)
+        ocr_rect = (ocr_rect[0] - L, ocr_rect[1] - T, ocr_rect[2] - L, ocr_rect[3] - T)
         canvas.create_rectangle(*ocr_rect, outline="#7AD35A", width=3)
         canvas.create_text(ocr_rect[0] + 6, ocr_rect[1] + 6, anchor="nw", text="Learn-OCR", fill="#7AD35A")
         with FARM_PREVIEW_LOCK:
             FARM_PREVIEW_OVERLAY = root
+            FARM_PREVIEW_KIND = "farm"
         send("farm_preview_state", {"visible": True, "message": "Showing farm regions."})
         root.mainloop()
     except Exception as e:
         with FARM_PREVIEW_LOCK:
             FARM_PREVIEW_OVERLAY = None
+            FARM_PREVIEW_KIND = None
         send("farm_preview_state", {"visible": False, "message": f"Preview failed: {e}"})
 
 def preview_farm_regions(points=None):
-    global FARM_PREVIEW_OVERLAY
+    global FARM_PREVIEW_OVERLAY, FARM_PREVIEW_KIND
     with FARM_PREVIEW_LOCK:
         visible = FARM_PREVIEW_OVERLAY is not None
     if visible:
         destroy_farm_preview_regions()
         return
+    with FARM_PREVIEW_LOCK:
+        FARM_PREVIEW_KIND = "farm"
     threading.Thread(target=_farm_preview_regions_thread, args=(dict(points or {}),), daemon=True).start()
+
+
+def _settings_preview_regions_thread(regions):
+    global FARM_PREVIEW_OVERLAY, FARM_PREVIEW_KIND
+    import tkinter as tk
+    try:
+        hwnd = find_roblox_hwnd()
+        if not hwnd:
+            send("settings_preview_state", {"visible": False, "message": "Roblox not found."})
+            return
+        cr = get_client_rect(hwnd)
+        if not cr:
+            send("settings_preview_state", {"visible": False, "message": "Roblox window not visible."})
+            return
+        L, T, R, B = cr
+        W, H = max(1, R - L), max(1, B - T)
+        root = tk.Tk()
+        root.overrideredirect(True)
+        root.attributes("-topmost", True)
+        trans = "#010101"
+        try:
+            root.attributes("-transparentcolor", trans)
+        except Exception:
+            pass
+        root.geometry(f"{W}x{H}+{L}+{T}")
+        root.configure(bg=trans)
+        canvas = tk.Canvas(root, highlightthickness=0, bg=trans, bd=0)
+        canvas.pack(fill="both", expand=True)
+        rows = [
+            ("Target Text", "target_region", "0,0.75,0.6,1"),
+            ("Pokémon Name", "pokemon_name_region", "0.05,0.15,0.35,0.25"),
+            ("HUD Text", "hud_region", "0.6,0.88,0.99,1"),
+            ("Bag HUD", "bag_hud_region", "0,0,0.50,1"),
+            ("Run HUD", "run_hud_region", "0.50,0,1,1"),
+            ("Ball Button", "ball_region", "0.27,0.16,0.53,0.785"),
+            ("Use Button", "use_region", "0.35,0.785,0.44,0.825"),
+        ]
+        rects = {}
+        hud_abs = _farm_preview_rect(regions.get("hud_region") or CFG.get("hud_region"), "0.6,0.88,0.99,1", L, T, R, B)
+        for label, key, fallback in rows:
+            if key in ("bag_hud_region", "run_hud_region"):
+                rect = _farm_preview_rect(regions.get(key) or CFG.get(key), fallback, *hud_abs)
+            else:
+                rect = _farm_preview_rect(regions.get(key) or CFG.get(key), fallback, L, T, R, B)
+            rects[key] = [rect[0] - L, rect[1] - T, rect[2] - L, rect[3] - T]
+
+        def fmt(v):
+            return f"{v:.3f}".rstrip("0").rstrip(".")
+
+        def rect_value(rect, key=None):
+            x0, y0, x1, y1 = rect
+            if key in ("bag_hud_region", "run_hud_region"):
+                hx0, hy0, hx1, hy1 = rects.get("hud_region", [0, 0, W, H])
+                hW, hH = max(1, hx1 - hx0), max(1, hy1 - hy0)
+                return ",".join([fmt((x0 - hx0) / hW), fmt((y0 - hy0) / hH), fmt((x1 - hx0) / hW), fmt((y1 - hy0) / hH)])
+            return ",".join([fmt(x0 / W), fmt(y0 / H), fmt(x1 / W), fmt(y1 / H)])
+
+        def clamp_rect(rect):
+            x0, y0, x1, y1 = rect
+            x0 = max(0, min(W, x0))
+            x1 = max(0, min(W, x1))
+            y0 = max(0, min(H, y0))
+            y1 = max(0, min(H, y1))
+            if x1 - x0 < 10:
+                x1 = min(W, x0 + 10)
+            if y1 - y0 < 10:
+                y1 = min(H, y0 + 10)
+            return [x0, y0, x1, y1]
+
+        def draw():
+            canvas.delete("all")
+            for label, key, fallback in rows:
+                rect = rects[key]
+                canvas.create_rectangle(*rect, outline="#7AD35A", width=3)
+                canvas.create_text(rect[0] + 6, rect[1] + 6, anchor="nw", text=label, fill="#7AD35A")
+
+        drag = {"key": None, "edges": None, "last": None}
+
+        def hit_test(x, y):
+            margin = 8
+            for label, key, fallback in reversed(rows):
+                x0, y0, x1, y1 = rects[key]
+                if x < x0 - margin or x > x1 + margin or y < y0 - margin or y > y1 + margin:
+                    continue
+                edges = []
+                if abs(x - x0) <= margin:
+                    edges.append("left")
+                if abs(x - x1) <= margin:
+                    edges.append("right")
+                if abs(y - y0) <= margin:
+                    edges.append("top")
+                if abs(y - y1) <= margin:
+                    edges.append("bottom")
+                if edges:
+                    return key, edges
+            return None, None
+
+        def update_cursor(event):
+            key, edges = hit_test(event.x, event.y)
+            if not edges:
+                canvas.config(cursor="")
+            elif len(edges) == 2:
+                canvas.config(cursor="sizing")
+            elif "left" in edges or "right" in edges:
+                canvas.config(cursor="sb_h_double_arrow")
+            else:
+                canvas.config(cursor="sb_v_double_arrow")
+
+        def on_press(event):
+            key, edges = hit_test(event.x, event.y)
+            if not key:
+                return
+            drag["key"] = key
+            drag["edges"] = edges
+            drag["last"] = (event.x, event.y)
+
+        def on_drag(event):
+            if not drag["key"]:
+                return
+            key = drag["key"]
+            last_x, last_y = drag["last"]
+            dx, dy = event.x - last_x, event.y - last_y
+            x0, y0, x1, y1 = rects[key]
+            if "left" in drag["edges"]:
+                x0 += dx
+            if "right" in drag["edges"]:
+                x1 += dx
+            if "top" in drag["edges"]:
+                y0 += dy
+            if "bottom" in drag["edges"]:
+                y1 += dy
+            rects[key] = clamp_rect([x0, y0, x1, y1])
+            drag["last"] = (event.x, event.y)
+            draw()
+
+        def on_release(event):
+            if not drag["key"]:
+                return
+            key = drag["key"]
+            value = rect_value(rects[key], key)
+            regions[key] = value
+            send("setting_region_changed", {"key": key, "value": value})
+            drag["key"] = None
+            drag["edges"] = None
+            drag["last"] = None
+
+        canvas.bind("<Motion>", update_cursor)
+        canvas.bind("<ButtonPress-1>", on_press)
+        canvas.bind("<B1-Motion>", on_drag)
+        canvas.bind("<ButtonRelease-1>", on_release)
+        draw()
+        with FARM_PREVIEW_LOCK:
+            FARM_PREVIEW_OVERLAY = root
+            FARM_PREVIEW_KIND = "settings"
+        send("settings_preview_state", {"visible": True, "message": "Showing advanced regions."})
+        root.mainloop()
+    except Exception as e:
+        with FARM_PREVIEW_LOCK:
+            FARM_PREVIEW_OVERLAY = None
+            FARM_PREVIEW_KIND = None
+        send("settings_preview_state", {"visible": False, "message": f"Preview failed: {e}"})
+
+def preview_settings_regions(regions=None):
+    global FARM_PREVIEW_OVERLAY, FARM_PREVIEW_KIND
+    with FARM_PREVIEW_LOCK:
+        visible = FARM_PREVIEW_OVERLAY is not None
+    if visible:
+        destroy_farm_preview_regions()
+        return
+    with FARM_PREVIEW_LOCK:
+        FARM_PREVIEW_KIND = "settings"
+    threading.Thread(target=_settings_preview_regions_thread, args=(dict(regions or {}),), daemon=True).start()
 
 def find_astralis_hwnd():
     found = wt.HWND(0)
@@ -3818,6 +4054,8 @@ def handle_message(msg):
         overlay_rebuild()
     elif msg_type == "preview_farm_regions":
         preview_farm_regions(msg.get("payload", {}).get("points", {}))
+    elif msg_type == "preview_settings_regions":
+        preview_settings_regions(msg.get("payload", {}).get("regions", {}))
     elif msg_type == "start_farm_bot":
         global FARM_THREAD
         if FARM_THREAD and FARM_THREAD.is_alive():
